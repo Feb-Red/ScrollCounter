@@ -61,6 +61,8 @@ public class NumberScrollCounter: UIView {
     private let gradientColor: UIColor?
     private let gradientStop: Float?
     
+    public var alignment: NSTextAlignment = .left
+    
     /// The animator controlling the current animation in the ScrollableCounter.
     private var animator: UIViewPropertyAnimator?
     
@@ -71,19 +73,28 @@ public class NumberScrollCounter: UIView {
     private var startingXCoordinate: CGFloat {
         var startingX: CGFloat = 0
         if let prefixView = prefixView {
-            startingX += prefixView.frame.width
+            if alignment == .left {
+                startingX += prefixView.frame.width
+            } else {
+                startingX -= prefixView.frame.width
+            }
         }
         if let negativeSignView = negativeSignView, currentValue < 0 {
-            startingX += negativeSignView.frame.width
+            if alignment == .left {
+                startingX += negativeSignView.frame.width
+            } else {
+                startingX -= negativeSignView.frame.width
+            }
+        }
+        if alignment == .right, startingX == 0 {
+            let width = textWidth
+            startingX = -width
         }
         return startingX
     }
-
-    public override var intrinsicContentSize: CGSize {
-        .init(
-            width: suffixView?.frame.maxX ?? digitScrollers.last?.frame.maxX ?? frame.width,
-            height: digitScrollers.first?.frame.height ?? frame.height
-        )
+    
+    var textWidth:CGFloat {
+        return String(format: "%.\(decimalPlaces)f", currentValue).size(withAttributes: [.font:font]).width
     }
     
     // MARK: - Init
@@ -110,8 +121,8 @@ public class NumberScrollCounter: UIView {
         - gradientColor: The color to use for the vertical gradient.  If this is `nil`, then no gradient is applied.
         - gradientStop: The stopping point for the gradient, where the bottom stopping point is (1 - gradientStop).  If gradientStop is not less than 0.5 than it is ignored.  If this is `nil`, then no gradient is applied.
      */
-    public init(value: Float, scrollDuration: TimeInterval = 0.3, decimalPlaces: Int = 0, prefix: String? = nil, suffix: String? = nil, seperator: String = ".", seperatorSpacing: CGFloat = 0, font: UIFont = UIFont.boldSystemFont(ofSize: UIFont.labelFontSize), textColor: UIColor = .black, animateInitialValue: Bool = false, gradientColor: UIColor? = nil, gradientStop: Float? = nil) {
-
+    public init(value: Float, scrollDuration: TimeInterval = 0.3, decimalPlaces: Int = 0, prefix: String? = nil, suffix: String? = nil, seperator: String = ".", seperatorSpacing: CGFloat = 0, font: UIFont = UIFont.boldSystemFont(ofSize: UIFont.labelFontSize), textColor: UIColor = .black, animateInitialValue: Bool = false, gradientColor: UIColor? = nil, gradientStop: Float? = nil, alignment:NSTextAlignment = .left) {
+        self.alignment = alignment
         self.currentValue = value
         
         self.decimalPlaces = decimalPlaces
@@ -133,9 +144,10 @@ public class NumberScrollCounter: UIView {
         
         super.init(frame: CGRect.zero)
         
+        self.clipsToBounds = false
+        
         setValue(value, animated: animateInitialValue)
         frame.size.height = digitScrollers.first!.height
-        
         sizeToFit()
     }
     
@@ -145,7 +157,7 @@ public class NumberScrollCounter: UIView {
     
     public override func sizeToFit() {
         var width: CGFloat = 0
-        
+        let currentWidth = self.frame.size.width
         if let suffixView = suffixView {
             width = suffixView.frame.origin.x + suffixView.frame.width
         } else if let lastDigit = digitScrollers.last {
@@ -153,6 +165,9 @@ public class NumberScrollCounter: UIView {
         }
         
         self.frame.size.width = width
+        if alignment == .right {
+            self.frame.origin.x -= (width - currentWidth)
+        }
     }
     
     // MARK: - Control
@@ -248,11 +263,6 @@ public class NumberScrollCounter: UIView {
         animator!.addCompletion({ _ in
             self.animator = nil
         })
-
-        invalidateIntrinsicContentSize()
-        animator?.addAnimations { [weak self] in
-            self?.superview?.layoutIfNeeded()
-        }
         animator!.startAnimation()
     }
     
@@ -298,7 +308,11 @@ public class NumberScrollCounter: UIView {
             
             var x = startingX + CGFloat(index) * scroller.width
             if index >= seperatorLocation, let seperatorView = seperatorView {
-                x += seperatorView.frame.width
+                if alignment == .right {
+                    x -= seperatorView.frame.width
+                } else {
+                    x += seperatorView.frame.width
+                }
             }
             animator.addAnimations {
                 scroller.alpha = 1
